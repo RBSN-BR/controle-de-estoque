@@ -1,0 +1,201 @@
+<script>
+    // ==============================================================================
+    // CONFIGURAÇÃO E DADOS GLOBAIS
+    // ==============================================================================
+    let stockData = [];
+    let historyData = [];
+
+    // IMPORTANTE: Substitua pelos seus próprios valores!
+    const GITHUB_USERNAME = "SEU_NOME_DE_USUARIO_GITHUB";
+    const GITHUB_REPO = "SEU_NOME_DO_REPOSITORIO"; // Ex: "controle-de-estoque"
+    
+    // Este URL será gerado pelo Vercel no Passo 4. Por enquanto, pode deixar em branco.
+    const VERCEL_API_URL = "URL_DA_SUA_API_NO_VERCEL"; 
+
+    const dbUrl = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/data/db.json`;
+
+    // ==============================================================================
+    // ELEMENTOS DO DOM (mesmo de antes)
+    // ==============================================================================
+    const stockTableBody = document.querySelector("#stock_table tbody");
+    const historyTableBody = document.querySelector("#history_table tbody");
+    const equipmentSelect = document.getElementById("equipamento");
+    const movementForm = document.getElementById("movement_form");
+    const newMaterialForm = document.getElementById("new_material_form");
+    const updateStockButton = document.getElementById("update_stock_button");
+    const passwordModal = document.getElementById("password_modal");
+    const passwordForm = document.getElementById("password_form");
+    const cancelPasswordButton = document.getElementById("cancel_password");
+    const exportStockButton = document.getElementById("export_stock");
+    const exportHistoryButton = document.getElementById("export_history");
+
+    // ==============================================================================
+    // FUNÇÕES DE LÓGICA
+    // ==============================================================================
+
+    // Função para carregar os dados iniciais do GitHub
+    async function loadInitialData() {
+        try {
+            const response = await fetch(dbUrl + `?t=${new Date().getTime()}`); // Adiciona timestamp para evitar cache
+            if (!response.ok) {
+                throw new Error(`Erro ao buscar dados: ${response.statusText}`);
+            }
+            const data = await response.json();
+            stockData = data.stock;
+            historyData = data.history;
+            
+            renderAll();
+        } catch (error) {
+            console.error("Falha ao carregar dados do GitHub:", error);
+            alert("Não foi possível carregar os dados do banco de dados no GitHub. A página pode não funcionar corretamente.");
+        }
+    }
+
+    // Função para salvar TODOS os dados de volta no GitHub via Vercel
+    async function saveData() {
+        if (!VERCEL_API_URL) {
+            alert("ERRO: A URL da API do Vercel não foi configurada no script.");
+            return;
+        }
+        try {
+            const response = await fetch(VERCEL_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stock: stockData, history: historyData })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erro ao salvar os dados.');
+            }
+            
+            alert("Dados salvos com sucesso!");
+
+        } catch (error) {
+            console.error("Falha ao salvar dados:", error);
+            alert(`Erro ao salvar os dados: ${error.message}`);
+        }
+    }
+
+    function renderAll() {
+        renderStockTable();
+        renderHistoryTable();
+        populateEquipmentDropdown();
+    }
+
+    // Funções de renderização (renderStockTable, renderHistoryTable, populateEquipmentDropdown) - MANTENHA AS MESMAS DA RESPOSTA ANTERIOR
+
+    function renderStockTable() {
+        stockTableBody.innerHTML = "";
+        stockData.sort((a, b) => a.equipamento.localeCompare(b.equipamento)).forEach(item => {
+            const row = document.createElement("tr");
+            const stockPercentage = (item.quantidade / item.estoque_original) * 100;
+            if (stockPercentage <= 25) row.classList.add("low-stock");
+            else if (stockPercentage <= 60) row.classList.add("medium-stock");
+            row.innerHTML = `<td>${item.equipamento}</td><td>${item.quantidade}</td><td>${item.estoque_original}</td>`;
+            stockTableBody.appendChild(row);
+        });
+    }
+
+    function renderHistoryTable() {
+        historyTableBody.innerHTML = "";
+        historyData.sort((a, b) => new Date(b.data) - new Date(a.data)).forEach(item => {
+            const row = document.createElement("tr");
+            row.classList.add(item.acao === 'retirada' ? 'action-retirada' : 'action-devolucao');
+            row.innerHTML = `<td>${new Date(item.data).toLocaleDateString('pt-BR')}</td><td>${item.equipamento}</td><td>${item.quantidade}</td><td>${item.responsavel}</td><td>${item.observacao}</td><td>${item.acao}</td>`;
+            historyTableBody.appendChild(row);
+        });
+    }
+
+    function populateEquipmentDropdown() {
+        equipmentSelect.innerHTML = "";
+        stockData.sort((a, b) => a.equipamento.localeCompare(b.equipamento)).forEach(item => {
+            const option = document.createElement("option");
+            option.value = item.equipamento;
+            option.textContent = item.equipamento;
+            equipmentSelect.appendChild(option);
+        });
+    }
+    
+    // ==============================================================================
+    // EVENT LISTENERS (Adaptados para chamar saveData)
+    // ==============================================================================
+
+    movementForm.addEventListener("submit", function(event) {
+        event.preventDefault();
+        // Lógica de validação (MESMA DA RESPOSTA ANTERIOR)
+        const equipamento = document.getElementById("equipamento").value;
+        const quantidade = parseInt(document.getElementById("quantidade").value);
+        const acao = document.getElementById("acao").value;
+        const itemEstoque = stockData.find(item => item.equipamento === equipamento);
+        if (!itemEstoque) { alert("Erro: Equipamento não encontrado!"); return; }
+        if (acao === 'retirada' && quantidade > itemEstoque.quantidade) { alert("Erro: Quantidade insuficiente!"); return; }
+        if (acao === 'devolucao' && (itemEstoque.quantidade + quantidade) > itemEstoque.estoque_original) { alert("Erro: Devolução ultrapassa o estoque original!"); return; }
+
+        // Atualiza os dados locais
+        if (acao === 'retirada') itemEstoque.quantidade -= quantidade;
+        else itemEstoque.quantidade += quantidade;
+        
+        historyData.push({
+            data: document.getElementById("data").value,
+            equipamento: equipamento,
+            quantidade: quantidade,
+            responsavel: document.getElementById("responsavel").value,
+            observacao: document.getElementById("observacao").value,
+            acao: acao
+        });
+        
+        movementForm.reset();
+        document.getElementById("data").valueAsDate = new Date();
+        renderAll();
+        saveData(); // <--- CHAMA A FUNÇÃO DE SALVAR
+    });
+
+    newMaterialForm.addEventListener("submit", function(event) {
+        event.preventDefault();
+        const novoNome = document.getElementById("novo_material").value.trim();
+        const novaQuantidade = parseInt(document.getElementById("quantidade_novo_material").value);
+        if (stockData.some(item => item.equipamento.toLowerCase() === novoNome.toLowerCase())) { alert("Erro: Este material já existe."); return; }
+
+        stockData.push({ equipamento: novoNome, quantidade: novaQuantidade, estoque_original: novaQuantidade });
+        newMaterialForm.reset();
+        renderAll();
+        saveData(); // <--- CHAMA A FUNÇÃO DE SALVAR
+    });
+
+    passwordForm.addEventListener("submit", function(event) {
+        event.preventDefault();
+        const senha = document.getElementById("senha").value;
+        if (senha === "Robson.rioterra") {
+            const equipamento = document.getElementById("equipamento").value;
+            const novaQuantidadeOriginal = parseInt(document.getElementById("quantidade").value);
+            const itemEstoque = stockData.find(item => item.equipamento === equipamento);
+            if (itemEstoque) {
+                itemEstoque.estoque_original = novaQuantidadeOriginal;
+                if (itemEstoque.quantidade > novaQuantidadeOriginal) itemEstoque.quantidade = novaQuantidadeOriginal;
+                renderAll();
+                saveData(); // <--- CHAMA A FUNÇÃO DE SALVAR
+            }
+            passwordModal.style.display = "none";
+            passwordForm.reset();
+        } else {
+            alert("Senha incorreta!");
+        }
+    });
+
+    // Funções de exportação e modal (MESMAS DA RESPOSTA ANTERIOR)
+    updateStockButton.addEventListener("click", () => passwordModal.style.display = "flex");
+    cancelPasswordButton.addEventListener("click", () => { passwordModal.style.display = "none"; passwordForm.reset(); });
+    function exportToExcel(data, fileName) { const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Dados"); XLSX.writeFile(wb, fileName); }
+    exportStockButton.addEventListener('click', () => exportToExcel(stockData, `estoque_${new Date().toISOString().slice(0,10)}.xlsx`));
+    exportHistoryButton.addEventListener('click', () => exportToExcel(historyData, `historico_${new Date().toISOString().slice(0,10)}.xlsx`));
+
+    // ==============================================================================
+    // INICIALIZAÇÃO DA PÁGINA
+    // ==============================================================================
+    document.addEventListener("DOMContentLoaded", function() {
+        document.getElementById("data").valueAsDate = new Date();
+        document.querySelector('.tab-content').classList.add('active');
+        loadInitialData(); // <--- CARREGA OS DADOS AO INICIAR
+    });
+</script>
