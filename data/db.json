@@ -1,0 +1,13 @@
+{
+  "stock": [
+    { "equipamento": "Furadeira", "quantidade": 5, "estoque_original": 5 },
+    { "equipamento": "Parafusadeira", "quantidade": 3, "estoque_original": 4 },
+    { "equipamento": "Martelo", "quantidade": 10, "estoque_original": 10 },
+    { "equipamento": "Serra Circular", "quantidade": 1, "estoque_original": 2 },
+    { "equipamento": "Trena 5m", "quantidade": 8, "estoque_original": 10 }
+  ],
+  "history": [
+    { "data": "2023-10-26", "equipamento": "Parafusadeira", "quantidade": 1, "responsavel": "João Silva", "observacao": "Projeto A", "acao": "retirada" },
+    { "data": "2023-10-25", "equipamento": "Serra Circular", "quantidade": 1, "responsavel": "Maria Costa", "observacao": "", "acao": "retirada" }
+  ]
+}
